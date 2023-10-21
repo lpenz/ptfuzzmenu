@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""
+Choose a man page to read interactively from a menu with fuzzy search
+"""
+
+import argparse
+import os
+import re
+
+import ptfuzzmenu
+from prompt_toolkit import Application
+from prompt_toolkit.formatted_text import StyleAndTextTuples
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding.bindings.focus import focus_next
+from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+from prompt_toolkit.layout.containers import Container, HSplit, VSplit, Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.layout import Layout
+from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
+from prompt_toolkit.styles import Style
+from prompt_toolkit.widgets import Frame, Label, TextArea
+
+PATH = "/usr/share/man"
+
+
+def generator():
+    labelre = re.compile(
+        re.escape(PATH)
+        + r"/(?P<label>man(?P<section>[0-9]+)/(?P<base>.*))\.[0-9]\S*\.gz"
+    )
+    for root, _, files in os.walk(PATH):
+        for filename in files:
+            path = os.path.join(root, filename)
+            m = labelre.match(path)
+            if not m:
+                continue
+            yield (m.group("label"), (int(m.group("section")), m.group("base")))
+
+
+def manmenu():
+    items = list(generator())
+    menu = ptfuzzmenu.FuzzMenu(items=items)
+    contents = TextArea(text="", multiline=True, wrap_lines=True, read_only=True)
+    root_container = VSplit(
+        [
+            Frame(title="Man pages", body=menu),
+            Frame(title="Contents", body=contents),
+        ]
+    )
+    layout = Layout(root_container)
+    layout.focus(menu)
+    kb = KeyBindings()
+    style = Style.from_dict(
+        {
+            "bigmenu.current": "bg:darkred",
+            "status": "bg:darkblue",
+        }
+    )
+    application: Application[None] = Application(
+        layout=layout,
+        key_bindings=kb,
+        full_screen=True,
+        style=style,
+    )
+    application.run()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--version", "-V", action="version", version="%(prog)s " + ptfuzzmenu.version()
+    )
+    parser.parse_args()
+    manmenu()
+
+
+if __name__ == "__main__":
+    main()
