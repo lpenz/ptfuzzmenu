@@ -57,7 +57,7 @@ async def man_loader(contents, queue):
         queue.task_done()
 
 
-async def manmenu():
+async def manmenu(no_search: bool):
     items = list(generator())
     items.sort()
     contents = TextArea(text="", multiline=True, wrap_lines=True, read_only=True)
@@ -67,7 +67,10 @@ async def manmenu():
     def handle_current(label, item) -> None:
         manloader_queue.put_nowait(item)
 
-    menu = ptfuzzmenu.VMenu(items=items, handle_current=handle_current)
+    if no_search:
+        menu = ptfuzzmenu.VMenu(items=items, handle_current=handle_current)
+    else:
+        menu = ptfuzzmenu.FuzzMenu(items=items, handle_current=handle_current)
     root_container = VSplit(
         [
             Frame(title="Man pages", body=menu),
@@ -79,10 +82,9 @@ async def manmenu():
     # Choose some strong colors just for show:
     style = Style.from_dict(
         {
-            "fuzzmenu.focused fuzzmenu.current": "fg:white bg:red",
-            "fuzzmenu.unfocused fuzzmenu.current": "fg:darkgreen bg:darkred",
-            "fuzzmenu.focused fuzzmenu.item": "fg:white bg:blue",
-            "fuzzmenu.unfocused fuzzmenu.item": "fg:gray bg:darkblue",
+            "fuzzmenu.focused fuzzmenu.current": "fg:black bg:white",
+            "fuzzmenu.unfocused fuzzmenu.current": "reverse",
+            "fuzzmenu.unfocused fuzzmenu.item": "fg:grey bg:black",
         }
     )
     kb = KeyBindings()
@@ -112,8 +114,13 @@ async def main():
     parser.add_argument(
         "--version", "-V", action="version", version="%(prog)s " + ptfuzzmenu.version()
     )
-    parser.parse_args()
-    await manmenu()
+    parser.add_argument(
+        "--no-search",
+        action="store_true",
+        help="Use a simple menu, with no fuzzy search",
+    )
+    args = parser.parse_args()
+    await manmenu(no_search=args.no_search)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 
 import importlib.metadata
 
+from .fuzzmenu import FuzzMenu
 from .vmenu import VMenu
 
 
@@ -12,4 +13,5 @@ def version() -> str:
 __all__ = [
     "version",
     "VMenu",
+    "FuzzMenu",
 ]
