@@ -6,19 +6,19 @@ Choose a man page to read interactively from a menu with fuzzy search
 import argparse
 import os
 import re
+import subprocess
 
 import ptfuzzmenu
 from prompt_toolkit import Application
-from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.bindings.focus import focus_next
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
-from prompt_toolkit.layout.containers import Container, HSplit, VSplit, Window
-from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.containers import VSplit
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
 from prompt_toolkit.styles import Style
-from prompt_toolkit.widgets import Frame, Label, TextArea
+from prompt_toolkit.widgets import Frame, TextArea
+
+E = KeyPressEvent
 
 PATH = "/usr/share/man"
 
@@ -39,8 +39,30 @@ def generator():
 
 def manmenu():
     items = list(generator())
-    menu = ptfuzzmenu.FuzzMenu(items=items)
+    items.sort()
     contents = TextArea(text="", multiline=True, wrap_lines=True, read_only=True)
+
+    def handle_current(label, item) -> None:
+        env = dict(os.environ)
+        width = 80
+        if contents.window.render_info:
+            width = str(contents.window.render_info.window_width - 1)
+        env["MANWIDTH"] = str(width)
+        manpage = subprocess.check_output(
+            ["man", "--encoding=utf-8", str(item[0]), item[1]],
+            env=env,
+            encoding="utf-8",
+            stderr=subprocess.STDOUT,
+        )
+        contents.text = subprocess.check_output(
+            ["col", "-bh"],
+            input=manpage,
+            encoding="utf-8",
+            stderr=subprocess.STDOUT,
+        ).replace("\t", "    ")
+
+    menu = ptfuzzmenu.FuzzMenu(items=items, handle_current=handle_current)
+
     root_container = VSplit(
         [
             Frame(title="Man pages", body=menu),
@@ -49,20 +71,34 @@ def manmenu():
     )
     layout = Layout(root_container)
     layout.focus(menu)
-    kb = KeyBindings()
+    # Choose some strong colors just for show:
     style = Style.from_dict(
         {
-            "bigmenu.current": "bg:darkred",
-            "status": "bg:darkblue",
+            "fuzzmenu.focused fuzzmenu.current": "fg:white bg:red",
+            "fuzzmenu.unfocused fuzzmenu.current": "fg:darkgreen bg:darkred",
+            "fuzzmenu.focused fuzzmenu.item": "fg:white bg:blue",
+            "fuzzmenu.unfocused fuzzmenu.item": "fg:gray bg:darkblue",
         }
     )
-    application: Application[None] = Application(
+    kb = KeyBindings()
+    app: Application[None] = Application(
         layout=layout,
         key_bindings=kb,
         full_screen=True,
         style=style,
     )
-    application.run()
+
+    @kb.add("tab")
+    def tab(event: E) -> None:
+        focus_next(event)
+
+    @kb.add("c-c")
+    @kb.add("c-d")
+    @kb.add("escape", "q")
+    def close(event: E) -> None:
+        app.exit()
+
+    app.run()
 
 
 def main():
