@@ -18,6 +18,8 @@ ptfuzzmenu can be installed via [pypi]:
 pip install ptfuzzmenu
 ```
 
+For [nix] users, it is also available as a [flake].
+
 
 ### Repository
 
@@ -71,4 +73,6 @@ ptfuzzmenu uses the standard python3 infra. To develop and test the module:
 
 
 [pypi]: https://pypi.org/project/ptfuzzmenu/
+[nix]: https://nixos.org/
+[flake]: https://nixos.wiki/wiki/Flakes
 [`venv`]: https://docs.python.org/3/library/venv.html
