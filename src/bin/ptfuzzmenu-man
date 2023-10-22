@@ -4,9 +4,9 @@ Choose a man page to read interactively from a menu with fuzzy search
 """
 
 import argparse
+import asyncio
 import os
 import re
-import subprocess
 
 import ptfuzzmenu
 from prompt_toolkit import Application
@@ -37,32 +37,37 @@ def generator():
             yield (m.group("label"), (int(m.group("section")), m.group("base")))
 
 
-def manmenu():
-    items = list(generator())
-    items.sort()
-    contents = TextArea(text="", multiline=True, wrap_lines=True, read_only=True)
-
-    def handle_current(label, item) -> None:
-        env = dict(os.environ)
+async def man_loader(contents, queue):
+    while True:
+        item = None
+        item = await queue.get()
+        while not queue.empty():
+            item = await queue.get()
+        contents.text = f"Loading {item[1]}..."
         width = 80
         if contents.window.render_info:
             width = str(contents.window.render_info.window_width - 1)
-        env["MANWIDTH"] = str(width)
-        manpage = subprocess.check_output(
-            ["man", "--encoding=utf-8", str(item[0]), item[1]],
-            env=env,
-            encoding="utf-8",
-            stderr=subprocess.STDOUT,
+        man = await asyncio.create_subprocess_shell(
+            f"MANWIDTH={width} man --encoding=utf-8 {str(item[0])} {item[1]} | col -bh",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
-        contents.text = subprocess.check_output(
-            ["col", "-bh"],
-            input=manpage,
-            encoding="utf-8",
-            stderr=subprocess.STDOUT,
-        ).replace("\t", "    ")
+        (manpage, _) = await man.communicate()
+        contents.text = manpage.decode("utf-8", errors="ignore").replace("\t", "    ")
+        queue.task_done()
+
+
+async def manmenu():
+    items = list(generator())
+    items.sort()
+    contents = TextArea(text="", multiline=True, wrap_lines=True, read_only=True)
+    manloader_queue = asyncio.Queue()
+    manloader_task = asyncio.create_task(man_loader(contents, manloader_queue))
+
+    def handle_current(label, item) -> None:
+        manloader_queue.put_nowait(item)
 
     menu = ptfuzzmenu.FuzzMenu(items=items, handle_current=handle_current)
-
     root_container = VSplit(
         [
             Frame(title="Man pages", body=menu),
@@ -96,19 +101,20 @@ def manmenu():
     @kb.add("c-d")
     @kb.add("escape", "q")
     def close(event: E) -> None:
+        manloader_task.cancel()
         app.exit()
 
-    app.run()
+    await app.run_async()
 
 
-def main():
+async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version", "-V", action="version", version="%(prog)s " + ptfuzzmenu.version()
     )
     parser.parse_args()
-    manmenu()
+    await manmenu()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.get_event_loop().run_until_complete(main())
