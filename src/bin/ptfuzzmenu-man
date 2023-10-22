@@ -67,7 +67,7 @@ async def manmenu():
     def handle_current(label, item) -> None:
         manloader_queue.put_nowait(item)
 
-    menu = ptfuzzmenu.FuzzMenu(items=items, handle_current=handle_current)
+    menu = ptfuzzmenu.VMenu(items=items, handle_current=handle_current)
     root_container = VSplit(
         [
             Frame(title="Man pages", body=menu),
