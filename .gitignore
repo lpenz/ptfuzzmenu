@@ -1,3 +1,4 @@
 /.dir-locals.el
 *.egg-info/
 /venv/
+/dist/

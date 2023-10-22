@@ -8,8 +8,11 @@ jobs:
       - uses: actions/checkout@v3.5.0
       - uses: docker://lpenz/omnilint:0.5.1
   python:
-    uses: lpenz/ghworkflow-python/.github/workflows/python.yml@devel
+    uses: lpenz/ghworkflow-python/.github/workflows/python.yml@v0.5.0
     with:
       docs: false
       coveralls: true
+      publish_pypi: true
       publish_github_release: true
+    secrets:
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
