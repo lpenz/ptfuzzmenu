@@ -4,12 +4,11 @@ from functools import wraps
 from typing import Any, Callable, Optional, Sequence, Sized, cast
 
 from prompt_toolkit.application import get_app
-from prompt_toolkit.formatted_text import StyleAndTextTuples
+from prompt_toolkit.formatted_text.base import OneStyleAndTextTuple, StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.layout.containers import Container, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
-from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
 
 E = KeyPressEvent
 
@@ -28,7 +27,7 @@ class VMenu:
         self.current_item: Optional[tuple[str, Any]] = self.items[0]
         self.current_index: Optional[int] = 0
         self.control = FormattedTextControl(
-            self._get_text_fragments,
+            self._gen_text_fragments,
             key_bindings=self._get_key_bindings(),
             focusable=focusable,
         )
@@ -45,27 +44,25 @@ class VMenu:
         else:
             return "class:fuzzmenu.unfocused"
 
-    def _get_text_fragments(self) -> StyleAndTextTuples:
-        def mouse_handler(mouse_event: MouseEvent) -> None:
-            if mouse_event.event_type == MouseEventType.MOUSE_UP:
-                self.current_index = mouse_event.position.y
+    def _gen_text_fragment_tuple(
+        self, item: Any, current: bool, last: bool
+    ) -> OneStyleAndTextTuple:
+        if current:
+            style = "[SetCursorPosition] class:fuzzmenu.current"
+        else:
+            style = "class:fuzzmenu.item"
+        suffix = "\n" if not last else ""
+        return (style, item[0] + suffix)
 
+    def _gen_text_fragments(self) -> StyleAndTextTuples:
         result: StyleAndTextTuples = []
         self.current_index = None
         for i, item in enumerate(self.items):
             current = item == self.current_item
+            last = i == len(self.items) - 1
+            result.append(self._gen_text_fragment_tuple(item, current, last))
             if current:
                 self.current_index = i
-                result.append(("[SetCursorPosition]", ""))
-                result.append(("class:fuzzmenu.current", item[0]))
-            else:
-                result.append(("class:fuzzmenu.item", item[0]))
-            result.append(("", "\n"))
-        # Add mouse handler to all fragments.
-        for i in range(len(result)):
-            result[i] = (result[i][0], result[i][1], mouse_handler)
-        if result:
-            result.pop()  # Remove last newline.
         return result
 
     def handle_current(self) -> None:
@@ -78,21 +75,27 @@ class VMenu:
             (label, item) = self.items[self.current_index]
             self._handle_enter(label, item)
 
-    def fix(self) -> None:
+    def sanitize(self) -> None:
         if not self.items:
+            # Only situation where the self.current_item/index members
+            # are None
             self.current_item = None
             self.current_index = None
             return
-        if self.current_item is None:
+        # Fix a self.current_item by setting it to the first item:
+        if self.current_item is None or self.current_item not in self.items:
             self.current_item = self.items[0]
             self.current_index = 0
             return
+        # Fix self.current_index == None by using self.current_item, which
+        # is valid here:
         if self.current_index is None:
             for i, item in enumerate(self.items):
                 if item == self.current_item:
                     self.current_index = i
                     return
             self.current_index = 0
+        # self.current_index is not None; fix values out-of-bounds:
         self.current_index = max(0, self.current_index)
         self.current_index = min(len(self.items) - 1, self.current_index)
         self.current_item = self.items[self.current_index]
@@ -103,15 +106,21 @@ class VMenu:
         def wrapper(func: Callable[[E], None]) -> Callable[[E], None]:
             @wraps(func)
             def inner(event: E) -> None:
+                self.sanitize()
                 if not self.items:
                     return
-                self.fix()
+                # self.current_item/index are only None if items is empty;
+                # so they are not None here:
+                assert self.current_item is not None
+                assert self.current_index is not None
+                previous = self.current_item
                 func(event)
-                if self.current_index is None or self.current_index < 0:
+                if self.current_index < 0:
                     self.current_index = 0
                 self.current_index = min(len(self.items) - 1, self.current_index)
                 self.current_item = self.items[self.current_index]
-                self.handle_current()
+                if self.current_item != previous:
+                    self.handle_current()
 
             return inner
 
@@ -155,7 +164,7 @@ class VMenu:
 
         @kb.add(" ")
         @kb.add("enter")
-        def _(event: E) -> None:
+        def _enter(event: E) -> None:
             self.handle_enter()
 
         return kb

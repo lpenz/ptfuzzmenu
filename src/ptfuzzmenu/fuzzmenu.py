@@ -21,7 +21,7 @@ class FuzzMenu:
         handle_enter: Optional[Callable[[str, Any], None]] = None,
     ):
         self.items = items
-        self.filtered_items = list(items)
+        self.filtered_items = items
         self._handle_current = handle_current
         self._handle_enter = handle_enter
         self.vmenu = _FuzzVMenu(self)
@@ -36,7 +36,7 @@ class FuzzMenu:
         self.filtered_items = [item for item in self.items if text in item[0]]
         self.vmenu.items = self.filtered_items
         self.vmenu.current_index = None
-        self.vmenu.fix()
+        self.vmenu.sanitize()
         self.vmenu.handle_current()
 
     def handle_current(self, label: str, item: Any) -> None:
