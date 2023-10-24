@@ -125,11 +125,13 @@ class VMenu:
             return inner
 
         @kb.add("c-home")
+        @kb.add("escape", "home")
         @wrapper
         def _first(event: E) -> None:
             self.current_index = 0
 
         @kb.add("c-end")
+        @kb.add("escape", "end")
         @wrapper
         def _last(event: E) -> None:
             self.current_index = len(self.items) - 1

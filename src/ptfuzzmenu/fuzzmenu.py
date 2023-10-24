@@ -1,11 +1,12 @@
 """Fuzzy-filtering menu widget for prompt-toolkit"""
 
+import re
 from typing import Any, Callable, Optional, Sequence
 
 from prompt_toolkit.application import get_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
-from prompt_toolkit.layout.containers import Container, HSplit, Window
+from prompt_toolkit.layout.containers import Container, HSplit, VSplit, Window
 from prompt_toolkit.layout.controls import BufferControl
 
 from .vmenu import VMenu
@@ -29,11 +30,20 @@ class FuzzMenu:
         self.control = BufferControl(
             buffer=self.buffer, key_bindings=self.vmenu._get_key_bindings()
         )
-        self.window = HSplit([Window(self.control), self.vmenu])
+        self.window = HSplit(
+            [
+                VSplit([Window(width=1, char="/", height=1), Window(self.control)]),
+                self.vmenu,
+            ]
+        )
 
     def _do_filter(self, buf: Buffer) -> None:
         text = buf.document.text
-        self.filtered_items = [item for item in self.items if text in item[0]]
+        try:
+            regex = re.compile(text)
+        except re.error:
+            return
+        self.filtered_items = [item for item in self.items if regex.search(item[0])]
         self.vmenu.items = self.filtered_items
         self.vmenu.current_index = None
         self.vmenu.sanitize()
