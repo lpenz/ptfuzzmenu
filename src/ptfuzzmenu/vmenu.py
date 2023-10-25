@@ -1,7 +1,7 @@
 """Vertical menu widget for prompt-toolkit"""
 
 from functools import wraps
-from typing import Any, Callable, Optional, Sequence, Sized, cast
+from typing import Any, Callable, Optional, Sequence
 
 from prompt_toolkit.application import get_app
 from prompt_toolkit.formatted_text.base import OneStyleAndTextTuple, StyleAndTextTuples
@@ -31,11 +31,10 @@ class VMenu:
             key_bindings=self._get_key_bindings(),
             focusable=focusable,
         )
-        self.window = Window(
-            self.control,
-            width=max([len(cast(Sized, i[0])) for i in self.items]),
-            style=self.get_style,
-        )
+        width = 0
+        for item in self.items:
+            width = max(width, *(len(line) for line in item[0].split("\n")))
+        self.window = Window(self.control, width=width, style=self.get_style)
         self.handle_current()
 
     def get_style(self) -> str:
