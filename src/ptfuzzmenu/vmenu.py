@@ -35,8 +35,10 @@ class VMenu:
             self._current_item = self._items[0]
         self.current_handler = current_handler
         self.accept_handler = accept_handler
+        self._text_fragments: StyleAndTextTuples = []
+        self._update_text_fragments()
         self.control = FormattedTextControl(
-            self._gen_text_fragments,
+            self._text_fragments,
             key_bindings=self._get_key_bindings(),
             focusable=focusable,
         )
@@ -51,26 +53,19 @@ class VMenu:
         else:
             return "class:fuzzmenu.unfocused"
 
-    def _gen_text_fragment_tuple(
-        self, item: Any, current: bool, last: bool
-    ) -> OneStyleAndTextTuple:
-        if current:
+    def _gen_cell(self, index: int, item: Any) -> OneStyleAndTextTuple:
+        if self.current_index is not None and index == self.current_index:
             style = "[SetCursorPosition] class:fuzzmenu.current"
         else:
             style = "class:fuzzmenu.item"
+        last = index == len(self.items) - 1
         suffix = "\n" if not last else ""
         return (style, item[0] + suffix)
 
-    def _gen_text_fragments(self) -> StyleAndTextTuples:
-        result: StyleAndTextTuples = []
-        self._current_index = None
+    def _update_text_fragments(self) -> None:
+        self._text_fragments.clear()
         for i, item in enumerate(self.items):
-            current = item == self.current_item
-            last = i == len(self.items) - 1
-            result.append(self._gen_text_fragment_tuple(item, current, last))
-            if current:
-                self.current_index = i
-        return result
+            self._text_fragments.append(self._gen_cell(i, item))
 
     @property
     def items(self) -> Sequence[Item]:
@@ -84,6 +79,7 @@ class VMenu:
             self._items = items
             self._current_index = None
             self._current_item = None
+            self._update_text_fragments()
             return
         width = 30
         for item in self._items:
@@ -95,6 +91,7 @@ class VMenu:
             pass
         if self.current_item is None:
             self.current_index = 0
+        self._update_text_fragments()
 
     @property
     def current_item(self) -> Optional[Item]:
@@ -108,8 +105,8 @@ class VMenu:
         self._current_item = None
         if not self.items:
             return
-        self._current_index = self.items.index(item)
-        self._current_item = item
+        index = self.items.index(item)
+        self.current_index = index
 
     @property
     def current_index(self) -> Optional[int]:
@@ -123,10 +120,17 @@ class VMenu:
             self._current_index = None
             self._current_item = None
             return
+        prev_index = self._current_index
         self._current_index = index
         self._current_index = max(0, self._current_index)
         self._current_index = min(len(self.items) - 1, self._current_index)
         self._current_item = self.items[self._current_index]
+        if prev_index is not None:
+            prev_item = self._items[prev_index]
+            self._text_fragments[prev_index] = self._gen_cell(prev_index, prev_item)
+        self._text_fragments[self._current_index] = self._gen_cell(
+            self._current_index, self._current_item
+        )
 
     def handle_current(self) -> None:
         if self.current_handler is not None and self._current_index is not None:
@@ -144,9 +148,9 @@ class VMenu:
             def inner(event: E) -> None:
                 if not self.items:
                     return
-                previous_item = self.current_item
+                prev_index = self.current_index
                 func(event)
-                if self.current_item != previous_item:
+                if self.current_index != prev_index:
                     self.handle_current()
 
             return inner
