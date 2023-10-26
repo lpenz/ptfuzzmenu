@@ -1,7 +1,7 @@
 """Fuzzy-filtering menu widget for prompt-toolkit"""
 
 import re
-from typing import Any, Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from prompt_toolkit.application import get_app
 from prompt_toolkit.buffer import Buffer
@@ -9,7 +9,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.layout.containers import Container, HSplit, VSplit, Window
 from prompt_toolkit.layout.controls import BufferControl
 
-from .vmenu import VMenu
+from .vmenu import Item, VMenu
 
 E = KeyPressEvent
 
@@ -17,15 +17,15 @@ E = KeyPressEvent
 class FuzzMenu:
     def __init__(
         self,
-        items: Sequence[tuple[str, Any]],
-        handle_current: Optional[Callable[[str, Any], None]] = None,
-        handle_enter: Optional[Callable[[str, Any], None]] = None,
+        items: Sequence[Item],
+        current_handler: Optional[Callable[[Item], None]] = None,
+        accept_handler: Optional[Callable[[Item], None]] = None,
     ):
         self.items = items
         self.filtered_items = items
-        self._handle_current = handle_current
-        self._handle_enter = handle_enter
-        self.vmenu = _FuzzVMenu(self)
+        self.vmenu = _FuzzVMenu(
+            self, current_handler=current_handler, accept_handler=accept_handler
+        )
         self.buffer = Buffer(multiline=False, on_text_changed=self._do_filter)
         self.control = BufferControl(
             buffer=self.buffer, key_bindings=self.vmenu._get_key_bindings()
@@ -45,30 +45,25 @@ class FuzzMenu:
             return
         self.filtered_items = [item for item in self.items if regex.search(item[0])]
         self.vmenu.items = self.filtered_items
-        self.vmenu.current_index = None
-        self.vmenu.sanitize()
         self.vmenu.handle_current()
-
-    def handle_current(self, label: str, item: Any) -> None:
-        if self._handle_current is not None:
-            self._handle_current(label, item)
-
-    def handle_enter(self, label: str, item: Any) -> None:
-        if self._handle_enter is not None:
-            self._handle_enter(label, item)
 
     def __pt_container__(self) -> Container:
         return self.window
 
 
 class _FuzzVMenu(VMenu):
-    def __init__(self, fuzzmenu: FuzzMenu):
+    def __init__(
+        self,
+        fuzzmenu: FuzzMenu,
+        current_handler: Optional[Callable[[Item], None]] = None,
+        accept_handler: Optional[Callable[[Item], None]] = None,
+    ):
         self.fuzzmenu = fuzzmenu
         VMenu.__init__(
             self,
             fuzzmenu.filtered_items,
-            fuzzmenu.handle_current,
-            fuzzmenu.handle_enter,
+            current_handler=current_handler,
+            accept_handler=accept_handler,
             focusable=False,
         )
 

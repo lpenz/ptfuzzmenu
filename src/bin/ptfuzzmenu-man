@@ -65,19 +65,19 @@ async def manmenu(no_search: bool):
     manloader_queue = asyncio.Queue()
     manloader_task = asyncio.create_task(man_loader(contents, manloader_queue))
 
-    def handle_current(label, item) -> None:
-        manloader_queue.put_nowait(item)
+    def current_handler(item) -> None:
+        manloader_queue.put_nowait(item[1])
 
-    def handle_enter(label, item) -> None:
+    def accept_handler(item) -> None:
         get_app().layout.focus(contents)
 
     if no_search:
         menu = ptfuzzmenu.VMenu(
-            items=items, handle_current=handle_current, handle_enter=handle_enter
+            items=items, current_handler=current_handler, accept_handler=accept_handler
         )
     else:
         menu = ptfuzzmenu.FuzzMenu(
-            items=items, handle_current=handle_current, handle_enter=handle_enter
+            items=items, current_handler=current_handler, accept_handler=accept_handler
         )
     root_container = VSplit(
         [

@@ -1,7 +1,7 @@
 """Vertical menu widget for prompt-toolkit"""
 
 from functools import wraps
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, NewType, Optional, Sequence
 
 from prompt_toolkit.application import get_app
 from prompt_toolkit.formatted_text.base import OneStyleAndTextTuple, StyleAndTextTuples
@@ -12,29 +12,37 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 
 E = KeyPressEvent
 
+Item = NewType("Item", tuple[str, Any])
+
 
 class VMenu:
     def __init__(
         self,
-        items: Sequence[tuple[str, Any]],
-        handle_current: Optional[Callable[[str, Any], None]] = None,
-        handle_enter: Optional[Callable[[str, Any], None]] = None,
+        items: Sequence[Item],
+        current_item: Optional[Item] = None,
+        current_handler: Optional[Callable[[Item], None]] = None,
+        accept_handler: Optional[Callable[[Item], None]] = None,
         focusable: bool = True,
     ):
-        self.items = items
-        self._handle_current = handle_current
-        self._handle_enter = handle_enter
-        self.current_item: Optional[tuple[str, Any]] = self.items[0]
-        self.current_index: Optional[int] = 0
+        self._items = items
+        self._current_item: Optional[Item] = None
+        self._current_index: Optional[int] = None
+        if current_item is not None:
+            self._current_index = self._items.index(current_item)
+            self._current_item = current_item
+        else:
+            self._current_index = 0
+            self._current_item = self._items[0]
+        self.current_handler = current_handler
+        self.accept_handler = accept_handler
         self.control = FormattedTextControl(
             self._gen_text_fragments,
             key_bindings=self._get_key_bindings(),
             focusable=focusable,
         )
-        width = 0
-        for item in self.items:
-            width = max(width, *(len(line) for line in item[0].split("\n")))
-        self.window = Window(self.control, width=width, style=self.get_style)
+        self.window = Window(self.control, width=30, style=self.get_style)
+        # Setting items via the property sanitizes everything:
+        self.items = items
         self.handle_current()
 
     def get_style(self) -> str:
@@ -55,7 +63,7 @@ class VMenu:
 
     def _gen_text_fragments(self) -> StyleAndTextTuples:
         result: StyleAndTextTuples = []
-        self.current_index = None
+        self._current_index = None
         for i, item in enumerate(self.items):
             current = item == self.current_item
             last = i == len(self.items) - 1
@@ -64,40 +72,69 @@ class VMenu:
                 self.current_index = i
         return result
 
-    def handle_current(self) -> None:
-        if self._handle_current is not None and self.current_index is not None:
-            (label, item) = self.items[self.current_index]
-            self._handle_current(label, item)
+    @property
+    def items(self) -> Sequence[Item]:
+        return self._items
 
-    def handle_enter(self) -> None:
-        if self._handle_enter is not None and self.current_index is not None:
-            (label, item) = self.items[self.current_index]
-            self._handle_enter(label, item)
+    @items.setter
+    def items(self, items: Sequence[Item]) -> None:
+        old_current_item = self.current_item
+        self._items = items
+        if not items:
+            self._items = items
+            self._current_index = None
+            self._current_item = None
+            return
+        width = 30
+        for item in self._items:
+            width = max(width, *(len(line) for line in item[0].split("\n")))
+        self.window.width = width
+        try:
+            self.current_item = old_current_item
+        except ValueError:
+            pass
+        if self.current_item is None:
+            self.current_index = 0
 
-    def sanitize(self) -> None:
+    @property
+    def current_item(self) -> Optional[Item]:
         if not self.items:
-            # Only situation where the self.current_item/index members
-            # are None
-            self.current_item = None
-            self.current_index = None
+            return None
+        return self._current_item
+
+    @current_item.setter
+    def current_item(self, item: Item) -> None:
+        self._current_index = None
+        self._current_item = None
+        if not self.items:
             return
-        # Fix a self.current_item by setting it to the first item:
-        if self.current_item is None or self.current_item not in self.items:
-            self.current_item = self.items[0]
-            self.current_index = 0
+        self._current_index = self.items.index(item)
+        self._current_item = item
+
+    @property
+    def current_index(self) -> Optional[int]:
+        if not self.items:
+            return None
+        return self._current_index
+
+    @current_index.setter
+    def current_index(self, index: int) -> None:
+        if not self.items:
+            self._current_index = None
+            self._current_item = None
             return
-        # Fix self.current_index == None by using self.current_item, which
-        # is valid here:
-        if self.current_index is None:
-            for i, item in enumerate(self.items):
-                if item == self.current_item:
-                    self.current_index = i
-                    return
-            self.current_index = 0
-        # self.current_index is not None; fix values out-of-bounds:
-        self.current_index = max(0, self.current_index)
-        self.current_index = min(len(self.items) - 1, self.current_index)
-        self.current_item = self.items[self.current_index]
+        self._current_index = index
+        self._current_index = max(0, self._current_index)
+        self._current_index = min(len(self.items) - 1, self._current_index)
+        self._current_item = self.items[self._current_index]
+
+    def handle_current(self) -> None:
+        if self.current_handler is not None and self._current_index is not None:
+            self.current_handler(self.items[self._current_index])
+
+    def handle_accept(self) -> None:
+        if self.accept_handler is not None and self._current_index is not None:
+            self.accept_handler(self.items[self._current_index])
 
     def _get_key_bindings(self) -> KeyBindings:
         kb = KeyBindings()
@@ -105,20 +142,11 @@ class VMenu:
         def wrapper(func: Callable[[E], None]) -> Callable[[E], None]:
             @wraps(func)
             def inner(event: E) -> None:
-                self.sanitize()
                 if not self.items:
                     return
-                # self.current_item/index are only None if items is empty;
-                # so they are not None here:
-                assert self.current_item is not None
-                assert self.current_index is not None
-                previous = self.current_item
+                previous_item = self.current_item
                 func(event)
-                if self.current_index < 0:
-                    self.current_index = 0
-                self.current_index = min(len(self.items) - 1, self.current_index)
-                self.current_item = self.items[self.current_index]
-                if self.current_item != previous:
+                if self.current_item != previous_item:
                     self.handle_current()
 
             return inner
@@ -139,34 +167,34 @@ class VMenu:
         @wrapper
         def _up(event: E) -> None:
             assert self.current_index is not None
-            self.current_index = self.current_index - 1
+            self.current_index -= 1
 
         @kb.add("down")
         @wrapper
         def _down(event: E) -> None:
             assert self.current_index is not None
-            self.current_index = self.current_index + 1
+            self.current_index += 1
 
         @kb.add("pageup")
         @wrapper
         def _pageup(event: E) -> None:
+            assert self.current_index is not None
             w = self.window
             if w.render_info:
-                assert self.current_index is not None
                 self.current_index -= len(w.render_info.displayed_lines)
 
         @kb.add("pagedown")
         @wrapper
         def _pagedown(event: E) -> None:
+            assert self.current_index is not None
             w = self.window
             if w.render_info:
-                assert self.current_index is not None
                 self.current_index += len(w.render_info.displayed_lines)
 
         @kb.add(" ")
         @kb.add("enter")
         def _enter(event: E) -> None:
-            self.handle_enter()
+            self.handle_accept()
 
         return kb
 
