@@ -44,6 +44,10 @@ async def man_loader(contents, queue):
         item = await queue.get()
         while not queue.empty():
             item = await queue.get()
+        if item is None:
+            contents.text = ""
+            queue.task_done()
+            continue
         contents.text = f"Loading {item[1]}..."
         width = 80
         if contents.window.render_info:
@@ -66,7 +70,10 @@ async def manmenu(no_search: bool):
     manloader_task = asyncio.create_task(man_loader(contents, manloader_queue))
 
     def current_handler(item) -> None:
-        manloader_queue.put_nowait(item[1])
+        if item is not None:
+            manloader_queue.put_nowait(item[1])
+        else:
+            manloader_queue.put_nowait(None)
 
     def accept_handler(item) -> None:
         get_app().layout.focus(contents)

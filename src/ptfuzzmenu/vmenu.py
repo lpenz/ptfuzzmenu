@@ -20,7 +20,7 @@ class VMenu:
         self,
         items: Sequence[Item],
         current_item: Optional[Item] = None,
-        current_handler: Optional[Callable[[Item], None]] = None,
+        current_handler: Optional[Callable[[Optional[Item]], None]] = None,
         accept_handler: Optional[Callable[[Item], None]] = None,
         focusable: bool = True,
     ):
@@ -133,8 +133,11 @@ class VMenu:
         )
 
     def handle_current(self) -> None:
-        if self.current_handler is not None and self._current_index is not None:
-            self.current_handler(self.items[self._current_index])
+        if self.current_handler is not None:
+            if self._current_index is not None:
+                self.current_handler(self.items[self._current_index])
+            else:
+                self.current_handler(None)
 
     def handle_accept(self) -> None:
         if self.accept_handler is not None and self._current_index is not None:

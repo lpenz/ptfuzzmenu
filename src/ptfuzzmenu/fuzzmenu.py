@@ -18,7 +18,7 @@ class FuzzMenu:
     def __init__(
         self,
         items: Sequence[Item],
-        current_handler: Optional[Callable[[Item], None]] = None,
+        current_handler: Optional[Callable[[Optional[Item]], None]] = None,
         accept_handler: Optional[Callable[[Item], None]] = None,
     ):
         self.items = items
@@ -55,7 +55,7 @@ class _FuzzVMenu(VMenu):
     def __init__(
         self,
         fuzzmenu: FuzzMenu,
-        current_handler: Optional[Callable[[Item], None]] = None,
+        current_handler: Optional[Callable[[Optional[Item]], None]] = None,
         accept_handler: Optional[Callable[[Item], None]] = None,
     ):
         self.fuzzmenu = fuzzmenu
