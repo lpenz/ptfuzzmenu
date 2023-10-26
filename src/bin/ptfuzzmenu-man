@@ -108,6 +108,7 @@ async def manmenu(no_search: bool):
         key_bindings=kb,
         full_screen=True,
         style=style,
+        mouse_support=True,
     )
 
     @kb.add("tab")

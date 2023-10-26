@@ -9,6 +9,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.layout.containers import Container, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
 
 E = KeyPressEvent
 
@@ -53,6 +54,16 @@ class VMenu:
         else:
             return "class:fuzzmenu.unfocused"
 
+    def _gen_mouse_handler(self, index: int) -> Callable[[MouseEvent], None]:
+        def mouse_event(e: MouseEvent) -> None:
+            if e.event_type == MouseEventType.MOUSE_UP:
+                prev_index = self.current_index
+                self.current_index = index
+                if self.current_index != prev_index:
+                    self.handle_current()
+
+        return mouse_event
+
     def _gen_cell(self, index: int, item: Any) -> OneStyleAndTextTuple:
         if self.current_index is not None and index == self.current_index:
             style = "[SetCursorPosition] class:fuzzmenu.current"
@@ -60,7 +71,7 @@ class VMenu:
             style = "class:fuzzmenu.item"
         last = index == len(self.items) - 1
         suffix = "\n" if not last else ""
-        return (style, item[0] + suffix)
+        return (style, item[0] + suffix, self._gen_mouse_handler(index))
 
     def _update_text_fragments(self) -> None:
         self._text_fragments.clear()
