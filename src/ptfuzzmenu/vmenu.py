@@ -25,19 +25,11 @@ class VMenu:
         accept_handler: Optional[Callable[[Item], None]] = None,
         focusable: bool = True,
     ):
-        self._items = items
+        self._items: Sequence[Item] = []
         self._current_item: Optional[Item] = None
         self._current_index: Optional[int] = None
-        if current_item is not None:
-            self._current_index = self._items.index(current_item)
-            self._current_item = current_item
-        else:
-            self._current_index = 0
-            self._current_item = self._items[0]
-        self.current_handler = current_handler
-        self.accept_handler = accept_handler
         self._text_fragments: StyleAndTextTuples = []
-        self._update_text_fragments()
+        self.reset(items, current_item, current_handler, accept_handler)
         self.control = FormattedTextControl(
             self._text_fragments,
             key_bindings=self._get_key_bindings(),
@@ -47,6 +39,24 @@ class VMenu:
         # Setting items via the property sanitizes everything:
         self.items = items
         self.handle_current()
+
+    def reset(
+        self,
+        items: Sequence[Item],
+        current_item: Optional[Item] = None,
+        current_handler: Optional[Callable[[Optional[Item]], None]] = None,
+        accept_handler: Optional[Callable[[Item], None]] = None,
+    ) -> None:
+        self._items = items
+        if current_item is not None:
+            self._current_index = self._items.index(current_item)
+            self._current_item = current_item
+        else:
+            self._current_index = 0
+            self._current_item = self._items[0]
+        self.current_handler = current_handler
+        self.accept_handler = accept_handler
+        self._update_text_fragments()
 
     def get_style(self) -> str:
         if get_app().layout.has_focus(self.window):
