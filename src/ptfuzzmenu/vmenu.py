@@ -86,23 +86,21 @@ class VMenu:
     def items(self, items: Sequence[Item]) -> None:
         old_current_item = self.current_item
         self._items = items
-        if not items:
-            self._items = items
-            self._current_index = None
-            self._current_item = None
-            self._update_text_fragments()
-            return
+        self._current_index = None
+        self._current_item = None
+        self._update_text_fragments()
         width = 30
         for item in self._items:
             width = max(width, *(len(line) for line in item[0].split("\n")))
         self.window.width = width
+        if not items:
+            return
         try:
             self.current_item = old_current_item
         except ValueError:
             pass
         if self.current_item is None:
             self.current_index = 0
-        self._update_text_fragments()
 
     @property
     def current_item(self) -> Optional[Item]:
